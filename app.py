@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func
 from flask import Flask, jsonify
 import datetime as dt
+from datetime import datetime
 
 ## Reminder: To run "app.py", go to containing folder, run GitBash from folder, enter envirnment, and use the command "python app.py" in GitBash
 
@@ -42,6 +43,7 @@ app = Flask(__name__)
 
 #1 (all) = "/"
 #________________________________________________
+
 @app.route("/")
 def welcome():
     return (f"Available Routes:<br/>"
@@ -54,6 +56,7 @@ def welcome():
 
 #2 = "/api/v1.0/precipitation"
 #________________________________________________
+
 @app.route("/api/v1.0/precipitation")
 def precipitation():
     prcp_search = session.query(*[measurement.date, measurement.prcp]).\
@@ -71,6 +74,7 @@ def precipitation():
        
 #3 = "/api/v1.0/stations"
 #________________________________________________
+
 @app.route("/api/v1.0/stations")
 def stations():
     stat_search = session.query(*[measurement.station]).\
@@ -82,8 +86,7 @@ def stations():
 
 #4 = "/api/v1.0/tobs"
 #________________________________________________
-#4a Query last 12 months of temperature data from most-actice station
-#4b Return Query as JSON response
+
 @app.route("/api/v1.0/tobs")
 def tobs():
     tobs_search = session.query(*[measurement.date,measurement.tobs]).\
@@ -100,21 +103,63 @@ def tobs():
 
     return jsonify(tobs_results)
 
-#5 = "/api/v1.0/<start>" and "/api/v1.0/<start>/<end>"
+#5 = "/api/v1.0/<start>" 
 #________________________________________________
-#5a Query based on variable date ranges that returns (for range): Min Temp, Max Temp, Avg Temp
-    #5a1 Return Query as JSON response
-#5b Query on specified start, calculate (for greater than date): "TMIN", "TMAX", "TAVG"
-#5c Query based on variable date ranges that returns (for range)(inclusive): "TMIN", "TMAX", "TAVG"
 
-#@app.route("/api/v1.0/<start>")
-#def range_a(start):
-    #range_a_search = start.replace(" ","").lower()
-    #for date in measurment.date:
-        #range_a_query = date
+@app.route("/api/v1.0/<start>")
+        
+def query_a(start):
+    try:
+        user_start = datetime.strptime(start, "%Y%m%d").date()
+        results = session.query(func.min(measurement.tobs).label('tmin'),
+                                func.max(measurement.tobs).label('tmax'),
+                                func.avg(measurement.tobs).label('tavg')).\
+                                filter(measurement.date > user_start).all()
+        
+        start_results = [] 
+        
+        for row in results:
+            start_results.append((row.tmin, row.tmax, row.tavg))
+            return jsonify(start_results)
+        
+    except Exception:
+        error_message = f"An error occorred on query: {start}." 
+        error_message += "\nPlease enter the date in the format 'YYYYMMDD'."
+        error_message += "\nValid range is from 2010-1-1 to 2017-08-23."
+        error_message += "\nIf date is valid: try refreshing your web browser, or restart the app and try again."
+        return f"<pre>{error_message}</pre>"
 
-    #return jsonify({"error": f"Query for date {start} invalid."}), 404
+#6 = "/api/v1.0/<start>/<end>" 
+#________________________________________________
 
+@app.route("/api/v1.0/<start>/<end>")
+        
+def query_b(start, end):
+    try:
+        user_start = datetime.strptime(start, "%Y%m%d").date()
+        user_end = datetime.strptime(end, "%Y%m%d").date()
+        results = session.query(func.min(measurement.tobs).label('tmin'),
+                                func.max(measurement.tobs).label('tmax'),
+                                func.avg(measurement.tobs).label('tavg')).\
+                                filter(measurement.date < user_end).\
+                                filter(measurement.date > user_start).all()
+        
+        start_results = [] 
+        
+        for row in results:
+            start_results.append((row.tmin, row.tmax, row.tavg))
+            return jsonify(start_results)
+             
+    except Exception:
+        error_message = f"An error occorred on query: {start}/{end}." 
+        error_message += "\nPlease enter the date in the format YYYYMMDD/YYYYMMDD."
+        error_message += "\nValid range is from 2010-1-1 to 2017-08-23."
+        error_message += "\nIf date is valid: try refreshing your web browser, or restart the app and try again."
+        return f"<pre>{error_message}</pre>"
+
+
+#End
+#________________________________________________
 
 if __name__ == '__main__':
     app.run(debug=True)
